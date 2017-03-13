@@ -36,16 +36,32 @@ function encode(data) {
 
 
 function decode(packet) {
+
+  // 0) Strip the packet of any already decoded symbols
+  console.log('raw', packet);
+  for (let i=0; i < decodeMsg.length; i++) {
+    if (! decodeMsg[i] || packet.indicies.indexOf(i) === -1) continue;
+
+    let c = decodeMsg[i].charCodeAt();
+    console.log(' > ', c);
+    packet.data ^= c;
+    _.remove(packet.indicies, (d) => d === i);
+  }
+  console.log('stripped', packet);
+
+
+  // 1) Either resolve (length = 1) or put it into reserve for later
   if (packet.indicies.length === 1) {
     let idx = packet.indicies[0];
-    if (decodeMsg[idx]) return;
 
     decodeMsg[idx] = String.fromCharCode(packet.data);
-    console.log('length 1 packet', decodeMsg[idx]);
+    // console.log('length 1 packet', decodeMsg[idx]);
+    console.log('going to resolve');
     resolve(packet.data, idx, 1);
-  } else {
+  } else if (packet.indicies.length > 1) {
     reserve.push(packet);
   }
+  console.log('');
 }
 
 
@@ -68,12 +84,11 @@ function resolve(data, idx, iter) {
 }
 
 let counter = 0;
-while (decodeMsg.join('').localeCompare(msg) !== 0) {
+while (decodeMsg.join('').localeCompare(msg) !== 0 && c < 100) {
   let packet = encode(data);
-  console.log('receviing', packet,  decodeMsg.join(''));
+  // console.log('receviing', packet,  decodeMsg.join(''));
 
   if (reserve.filter( p => p.data === packet.data).length > 0) {
-    console.log('repeated...discard');
   } else {
     counter ++;
     decode(packet);
