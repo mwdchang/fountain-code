@@ -1,0 +1,77 @@
+<!Doctype HTML>
+<html>
+<head>
+  <title>Luby Transform </title>
+  <script src="https://d3js.org/d3.v4.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/lodash.js/4.17.4/lodash.min.js"></script>
+  <script src="./fountain.js"></script>
+  <style>
+  body {
+    font-family: Verdana, Tahoma;
+    margin: 1.0rem;
+  }
+  </style>
+</head>
+<body>
+  <h3>Luby-Transform runner/visualizer</h3>
+  <p style="font-size:75%">
+  </p>
+  <span>Enter a short message to encode <input type="text" size=20> <button>Start</button></span>
+  <br><br>
+  <button>Previous</button><span> x of y </span><button>Next</button>
+  <br><br>
+  <svg id="packet-log" width="800px" height="450px">
+  </svg>
+
+  <p style="font-size:75%">
+    * The encoder uses the simple-soliton distribution in the degree function for simplicity.
+    It works most of the time, but does not guarantee completion.
+    A robust-solition distribution implementation should work a lot better as it would not end up in a skew.
+  </p>
+</body>
+<script>
+
+  let translate = (x, y) => {
+    return 'translate(' + x + ',' + y + ')';
+  };
+
+  let fountain = new Fountain();
+  fountain.set('Hello world');
+
+  for (let i=0; i < 20; i++) {
+    fountain.decode();
+  }
+  console.log(fountain.decodedData.map( d => d.c === null? '?':d.c));
+
+  let g1 = d3.select('#packet-log').append('g');
+  let h = 25;
+
+  let packets = g1.selectAll('.packet')
+    .data(fountain.packetLog)
+    .enter()
+    .append('g')
+    .classed('packet', true)
+    .attr('transform', (d, i) => translate(i*20, 0));
+
+  packets.each(function(d) {
+    d.idxList.forEach( idx => {
+
+      d3.select(this).append('rect')
+        .attr('x', 0)
+        .attr('y', idx*h)
+        .attr('width', 20)
+        .attr('height', h)
+        .style('fill', 'none')
+        .style('stroke', '#888');
+
+      d3.select(this).append('text')
+        .attr('x', 5)
+        .attr('y', (h-5)+ idx*h)
+        .text('?');
+    })
+  })
+
+
+
+</script>
+</html>
