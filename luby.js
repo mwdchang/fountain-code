@@ -39,7 +39,6 @@ for (let i=2; i <= msgLength; i++) {
   distribution.push( v );
   start = v;
 }
-console.log('final start', start);
 console.log(distribution);
 
 
@@ -65,7 +64,7 @@ function encode(data) {
 function decode(packet) {
 
   // 0) Strip the packet of any already decoded symbols
-  // console.log('raw', packet);
+  console.log('raw', packet);
   for (let i=0; i < decodeMsg.length; i++) {
     if (! decodeMsg[i] || packet.indicies.indexOf(i) === -1) continue;
 
