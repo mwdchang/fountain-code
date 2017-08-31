@@ -17,6 +17,7 @@ function Fountain() {
   // Tracking
   this.packetLog = [];
   this.resolveLog = [];
+  this.packetId = 0;
 }
 
 /**
@@ -31,8 +32,16 @@ Fountain.prototype.set = function(msg) {
   this.decodedData = this.message.split('').map( (c, i) => {
     return {c: null, idx:i}
   });
+  this.reserve = [];
+
+  this.packetLog = [];
+  this.packetId = 0;
 
   this.computeDistribution();
+}
+
+Fountain.prototype.finished = function() {
+  return (_.some(this.decodedData, d => d.c === null)  === false);
 }
 
 /**
@@ -81,7 +90,7 @@ Fountain.prototype.encode = function() {
 }
 
 
-Fountain.prototype.resolve = function(c, idx) {
+Fountain.prototype.resolve = function(c, idx, packetId, iteration) {
 
   // Already resolved
   if (this.decodedData[idx].c !== null) return;
@@ -91,12 +100,28 @@ Fountain.prototype.resolve = function(c, idx) {
     if (p.idxList.indexOf(idx) >= 0) {
       p.data ^= c.charCodeAt();
       p.idxList = _.difference(p.idxList, [idx]);
+
+      /*
+      this.resolveLog.push({
+        from: packetId,
+        to: p.packetId,
+        idx: idx,
+        iteration: iteration
+      });
+      */
     }
   });
 
   let newResolve = _.remove(this.reserve, p => p.idxList.length === 1);
   newResolve.forEach( p=> {
-    this.resolve(String.fromCharCode(p.data), p.idxList[0]);
+    // if (this.resolveLog.length !== 1)  
+    this.resolveLog.push({
+      from: packetId,
+      to: p.packetId,
+      fromIdx: idx,
+      toIdx: p.idxList[0]
+    });
+    this.resolve(String.fromCharCode(p.data), p.idxList[0], p.packetId, iteration++);
   });
 }
 
@@ -107,11 +132,13 @@ Fountain.prototype.resolve = function(c, idx) {
 Fountain.prototype.decode = function() {
   let packet = this.encode();
   let reserve = this.reserve;
+  this.resolveLog = [];
 
   // Duplicate
   if (_.some(reserve, d => (d.data === packet.data))) return;
 
-  this.packetLog.push( _.clone(packet) );
+  packet.packetId = this.packetId;
+
 
   // 0) Scrub
   let decoded = this.decodedData.filter( d => d.c !== null);
@@ -122,11 +149,21 @@ Fountain.prototype.decode = function() {
     }
   });
 
+  if (packet.idxList.length === 0) return;
+
   // 1) Check if length 1
   if (packet.idxList.length === 1) {
-    this.resolve(String.fromCharCode(packet.data), packet.idxList[0]);
+    this.resolve(String.fromCharCode(packet.data), packet.idxList[0], packet.packetId, 0);
   } else {
     this.reserve.push(packet);
   }
+
+  // This powers the visualization
+  this.packetLog.push({
+    packet: _.clone(packet),
+    resolve: this.resolveLog,
+    decodedData: _.cloneDeep(this.decodedData)
+  });
+  this.packetId ++;
 
 }

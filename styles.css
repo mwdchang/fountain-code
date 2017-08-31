@@ -1,0 +1,36 @@
+body {
+  height: 100%;
+  padding: 0;
+  margin: 0;
+  font-family: Tahoma, Verdana;
+  font-size: 14px;
+  display: flex;
+  justify-content: center;
+  background: #DDD;
+}
+
+section {
+  background: #FDFDFD;
+  margin: 0 4rem;
+  padding: 0 2rem;
+  flex-grow: 0;
+}
+
+table {
+  border-spacing: 0;
+  border-top: 1px solid #999;
+  border-right: 1px solid #999;
+}
+
+
+td {
+  padding: 0 0.5rem;
+  border-left: 1px solid #bbb;
+  border-bottom: 1px solid #bbb;
+}
+
+td.spacer {
+  width: 3rem;
+  border-left: 2px solid #bbb;
+  border-right: 1px solid #bbb;
+}

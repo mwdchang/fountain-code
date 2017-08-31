@@ -2,34 +2,41 @@
 <html>
 <head>
   <title>Luby Transform </title>
+  <!--
   <script src="https://d3js.org/d3.v4.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/lodash.js/4.17.4/lodash.min.js"></script>
+  -->
+  <link href="styles.css" rel="stylesheet">
+  <script src="../libs/d3.min.js"></script>
+  <script src="../libs/lodash.min.js"></script>
   <script src="./fountain.js"></script>
-  <style>
-  body {
-    font-family: Verdana, Tahoma;
-    margin: 1.0rem;
-  }
-  </style>
 </head>
 <body>
-  <h3>Luby-Transform runner/visualizer</h3>
-  <p style="font-size:75%">
-  </p>
-  <span>Enter a short message to encode <input type="text" size=20> <button>Start</button></span>
-  <br><br>
-  <button>Previous</button><span> x of y </span><button>Next</button>
-  <br><br>
-  <svg id="packet-log" width="800px" height="450px">
-  </svg>
+  <section>
+    <h3>Luby-Transform runner/visualizer</h3>
+    <p>
+      A Fountain Code demo with Luby-Transform. The message is transformed into (theoretically) limitless
+      number of chucks. The message can then be assembled by collecting enough "droplets" that is
+      proportional to the original message size.
+    </p>
+    <p>
+      This demo uses simple-soliton distribution in the degree function, which is simple but does
+      not guarantee completion. A robust-soliton distribution should work far better.
+    </p>
 
-  <p style="font-size:75%">
-    * The encoder uses the simple-soliton distribution in the degree function for simplicity.
-    It works most of the time, but does not guarantee completion.
-    A robust-solition distribution implementation should work a lot better as it would not end up in a skew.
-  </p>
+    <span>Enter a short message (say 5 to 20) to encode <input type="text" size=20 maxlength="20"> <button onclick="run()">Run</button></span>
+    <br><br>
+    <table>
+    </table>
+    <svg id="packet-log" width="1000px" height="650px">
+    </svg>
+
+  </section>
 </body>
 <script>
+
+  let iteration = 0;
+  let msg = '';
 
   let translate = (x, y) => {
     return 'translate(' + x + ',' + y + ')';
@@ -41,37 +48,111 @@
   for (let i=0; i < 20; i++) {
     fountain.decode();
   }
-  console.log(fountain.decodedData.map( d => d.c === null? '?':d.c));
 
-  let g1 = d3.select('#packet-log').append('g');
-  let h = 25;
-
-  let packets = g1.selectAll('.packet')
-    .data(fountain.packetLog)
-    .enter()
-    .append('g')
-    .classed('packet', true)
-    .attr('transform', (d, i) => translate(i*20, 0));
-
-  packets.each(function(d) {
-    d.idxList.forEach( idx => {
-
-      d3.select(this).append('rect')
-        .attr('x', 0)
-        .attr('y', idx*h)
-        .attr('width', 20)
-        .attr('height', h)
-        .style('fill', 'none')
-        .style('stroke', '#888');
-
-      d3.select(this).append('text')
-        .attr('x', 5)
-        .attr('y', (h-5)+ idx*h)
-        .text('?');
-    })
-  })
+  function run() {
+    msg = d3.select('input').node().value;
+    iteration = 0;
+    fountain.set(msg);
+    for (let i=0; i < msg.length * 3; i++) {
+      fountain.decode();
+      iteration ++;
+      if (fountain.finished()) break;
+    }
+    if (fountain.finished()) {
+      console.log('finished in ' + iteration + ' iterations');
+    } else {
+      console.log('unable to complete');
+    }
+    render();
+  }
 
 
+
+  function render() {
+    d3.select('#packet-log').selectAll('*').remove();
+    d3.select('table').selectAll('*').remove();
+    let g1 = d3.select('#packet-log').append('g').attr('transform', translate(10, 10));
+    let h = 20;
+
+    let packets = g1.selectAll('.packet')
+      .data(fountain.packetLog)
+      .enter()
+      .append('g')
+      .classed('packet', true)
+      .attr('transform', (d, i) => translate(0, i*30));
+
+    // Headers
+    let header = d3.select('table').append('tr');
+    header.append('td').attr('colspan', msg.length).text('Input');
+    header.append('td').classed('spacer', true);
+    header.append('td').attr('colspan', msg.length).text('Decode');
+    header.append('td').classed('spacer', true);
+    header.append('td').text('Resolve');
+
+
+    let rows = d3.select('table')
+      .selectAll('.row')
+      .data(fountain.packetLog)
+      .enter()
+      .append('tr')
+      .classed('row', true);
+
+
+    rows.each(function(d, packetIdx) {
+      let row = d3.select(this);
+      let decodedData = d.decodedData;
+      let resolve = d.resolve;
+      let packet = d.packet;
+
+      let fillColour = (idx) => {
+        for (let i=0; i < resolve.length; i++) {
+          if (resolve[i].fromIdx === idx) {
+            return '#39C';
+          }
+          if (resolve[i].toIdx === idx) {
+            return '#F80';
+          }
+        }
+        if (packet.idxList.length === 1 && packet.idxList[0] === idx) {
+          return '#0B4';
+        }
+        return null;
+      }
+
+
+      // Build input
+      for (let i=0; i < decodedData.length; i++) {
+        if (packet.idxList.indexOf(i) >= 0) {
+          let symbol = decodedData[i].c === null? '?' : decodedData[i].c;
+          row.append('td').text(symbol);
+        } else {
+          row.append('td');
+        }
+      }
+
+      // Empty
+      row.append('td').classed('spacer', true);
+
+      // Build decode
+      decodedData.forEach((d, idx) => {
+        let symbol = decodedData[idx].c === null? '?' : decodedData[idx].c;
+        let td = row.append('td').text(symbol);
+        td.style('background', fillColour(idx));
+      });
+
+      // Empty
+      row.append('td').classed('spacer', true);
+
+      // Decode
+      let str = '';
+      for (let i=0; i < resolve.length; i++) {
+        str += decodedData[resolve[i].fromIdx].c + ' -> ' + decodedData[resolve[i].toIdx].c;
+        if (i < resolve.length-1) str += ', ';
+      }
+      row.append('td').text(str);
+    });
+
+  }
 
 </script>
 </html>
