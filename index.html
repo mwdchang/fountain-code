@@ -1,42 +1,57 @@
 <!Doctype HTML>
 <html>
 <head>
-  <title>Luby Transform </title>
-  <!--
+  <title>Fountain code - LT</title>
+
   <script src="https://d3js.org/d3.v4.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/lodash.js/4.17.4/lodash.min.js"></script>
-  -->
+
   <link href="styles.css" rel="stylesheet">
+  <!--
   <script src="../libs/d3.min.js"></script>
   <script src="../libs/lodash.min.js"></script>
+-->
   <script src="./fountain.js"></script>
 </head>
 <body>
   <section>
-    <h3>Luby-Transform runner/visualizer</h3>
+    <h3>Fountain code demo - LT</h3>
     <p>
-      A Fountain Code demo with Luby-Transform. The message is transformed into (theoretically) limitless
+      A Fountain code demo using Luby transforms. The message is transformed into (theoretically) limitless
       number of chucks. The message can then be assembled by collecting enough "droplets" that is
       proportional to the original message size.
     </p>
     <p>
-      This demo uses simple-soliton distribution in the degree function, which is simple but does
-      not guarantee completion. A robust-soliton distribution should work far better.
+      Each droplet starts a resolution process, which is coloured as follows:
+      <span style="padding:0 0.25rem; background:#39C">Inver by current packet</span>
+      <span style="padding:0 0.25rem; background:#F80">Infer previous packet</span>, and
+      <span style="padding:0 0.25rem; background:#0B4">Immediately known</span>
     </p>
 
-    <span>Enter a short message (say 5 to 20) to encode <input type="text" size=20 maxlength="20"> <button onclick="run()">Run</button></span>
+    <span>
+      <input type="text" placeholder="Enter a short message" size=20 maxlength="20"> <button onclick="run()">Run</button>
+    </span>
     <br><br>
-    <table>
-    </table>
-    <svg id="packet-log" width="1000px" height="650px">
-    </svg>
+    <div style="min-height: 200px; display: flex; flex-direction: row">
+      <table></table>
+      <svg></svg>
+    </div>
+    <p>
+      <small>
+      * For simplicity I used simple-soliton distribution, this can cause skews and does not guarantee
+      completion. A robust-soliton distribution should work far better.
+      </small>
+    </p>
 
   </section>
+  <a href="https://github.com/mwdchang/fountain-code"><img style="position: absolute; top: 0; right: 0; border: 0;" src="https://camo.githubusercontent.com/38ef81f8aca64bb9a64448d0d70f1308ef5341ab/68747470733a2f2f73332e616d617a6f6e6177732e636f6d2f6769746875622f726962626f6e732f666f726b6d655f72696768745f6461726b626c75655f3132313632312e706e67" alt="Fork me on GitHub" data-canonical-src="https://s3.amazonaws.com/github/ribbons/forkme_right_darkblue_121621.png"></a>
 </body>
 <script>
 
   let iteration = 0;
   let msg = '';
+  let colours = d3.scaleOrdinal(d3.schemeCategory20);
+
 
   let translate = (x, y) => {
     return 'translate(' + x + ',' + y + ')';
@@ -64,31 +79,55 @@
       console.log('unable to complete');
     }
     render();
+
+    let graph = {};
+    graph.nodes = msg.split('').map( (c, idx) => {
+      return {
+        id: idx,
+        group: 0,
+        name: c,
+        isResolver: false,
+        isResolvee: false,
+        isImmediate: false
+      };
+    });
+    graph.links = [];
+
+    fountain.packetLog.forEach( (log, logIdx) => {
+      let resolve = log.resolve;
+      if (log.packet.idxList.length === 1) {
+        graph.nodes.filter(g => g.id === log.packet.idxList[0])[0].isImmediate = true;
+      }
+
+      resolve.forEach( r => {
+
+        graph.nodes.filter(g => g.id === r.fromIdx)[0].isResolver = true;
+        graph.nodes.filter(g => g.id === r.toIdx)[0].isResolvee = true;
+
+        graph.links.push({
+          source: r.fromIdx,
+          target: r.toIdx,
+          group: logIdx
+        });
+      });
+    });
+
+    d3.select('svg').style('display', 'block');
+    renderSVG(graph);
   }
 
 
 
   function render() {
-    d3.select('#packet-log').selectAll('*').remove();
     d3.select('table').selectAll('*').remove();
-    let g1 = d3.select('#packet-log').append('g').attr('transform', translate(10, 10));
-    let h = 20;
-
-    let packets = g1.selectAll('.packet')
-      .data(fountain.packetLog)
-      .enter()
-      .append('g')
-      .classed('packet', true)
-      .attr('transform', (d, i) => translate(0, i*30));
 
     // Headers
     let header = d3.select('table').append('tr');
-    header.append('td').attr('colspan', msg.length).text('Input');
+    header.append('td').attr('colspan', msg.length).text('Packet');
     header.append('td').classed('spacer', true);
-    header.append('td').attr('colspan', msg.length).text('Decode');
+    header.append('td').attr('colspan', msg.length).text('Decoded');
     header.append('td').classed('spacer', true);
-    header.append('td').text('Resolve');
-
+    // header.append('td').text('Resolve chain');
 
     let rows = d3.select('table')
       .selectAll('.row')
@@ -96,7 +135,6 @@
       .enter()
       .append('tr')
       .classed('row', true);
-
 
     rows.each(function(d, packetIdx) {
       let row = d3.select(this);
@@ -119,7 +157,6 @@
         return null;
       }
 
-
       // Build input
       for (let i=0; i < decodedData.length; i++) {
         if (packet.idxList.indexOf(i) >= 0) {
@@ -135,7 +172,7 @@
 
       // Build decode
       decodedData.forEach((d, idx) => {
-        let symbol = decodedData[idx].c === null? '?' : decodedData[idx].c;
+        let symbol = decodedData[idx].c === null? '' : decodedData[idx].c;
         let td = row.append('td').text(symbol);
         td.style('background', fillColour(idx));
       });
@@ -144,14 +181,88 @@
       row.append('td').classed('spacer', true);
 
       // Decode
+      /*
       let str = '';
       for (let i=0; i < resolve.length; i++) {
-        str += decodedData[resolve[i].fromIdx].c + ' -> ' + decodedData[resolve[i].toIdx].c;
+        str += decodedData[resolve[i].fromIdx].c + ':' + decodedData[resolve[i].toIdx].c;
         if (i < resolve.length-1) str += ', ';
       }
-      row.append('td').text(str);
+      row.append('td').style('max-width', '9rem').text(str);
+      */
     });
+  }
 
+
+  // Draw
+  function renderSVG(graph) {
+    d3.select('svg').selectAll('*').remove();
+    let svg = d3.select('svg').attr('width', 260).attr('height', 260);
+
+    let radius = 10;
+    let width = 260;
+    let height = 260;
+    let simulation = d3.forceSimulation()
+        .force('link', d3.forceLink().id(function(d) { return d.id; }))
+        .force('charge', d3.forceManyBody())
+        .force('center', d3.forceCenter(130, 130));
+
+    let link = svg.append('g')
+      .attr('class', 'links')
+      .selectAll('line')
+      .data(graph.links)
+      .enter().append('line')
+      .attr('stroke-width', 2);
+
+    let node = svg.append('g')
+      .attr('class', 'nodes')
+      .selectAll('circle')
+      .data(graph.nodes)
+      .enter().append('circle')
+      .attr('r', radius)
+      .style('stroke', function(d) {
+        if (d.isResolvee === true) {
+          return '#F80';
+        }
+        return 'none';
+      })
+      .attr('fill', function(d) {
+        if (d.isResolver) {
+          return '#39C';
+        } else if (d.isImmediate === true) {
+          return '#0B4';
+        }
+        return '#FFF';
+      });
+
+    let text = svg.append('g')
+      .selectAll('text')
+      .data(graph.nodes)
+      .enter().append('text')
+      .text( d => d.name);
+
+
+    simulation.nodes(graph.nodes).on("tick", ticked);
+    simulation.force("link").links(graph.links);
+
+
+    function ticked() {
+      /*
+      node.attr("cx", function(d) { return d.x; })
+        .attr("cy", function(d) { return d.y; });
+        */
+      node.attr("cx", function(d) { return d.x = Math.max(2*radius, Math.min(width - 2*radius, d.x)); })
+        .attr("cy", function(d) { return d.y = Math.max(2*radius, Math.min(height - 2*radius, d.y)); });
+
+      link.attr("x1", function(d) { return d.source.x; })
+        .attr("y1", function(d) { return d.source.y; })
+        .attr("x2", function(d) { return d.target.x; })
+        .attr("y2", function(d) { return d.target.y; });
+
+      text.attr("x", function(d) { return d.x = (Math.max(2*radius, Math.min(width - 2*radius, d.x)) - 10); })
+        .attr("y", function(d) { return d.y = (Math.max(2*radius, Math.min(height - 2*radius, d.y)) -10); });
+
+
+    }
   }
 
 </script>
